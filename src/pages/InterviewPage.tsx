@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { GeneratedInterviewQuestion } from '../services/geminiService';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Brain,
@@ -14,6 +15,10 @@ import {
   Bot,
   TrendingUp,
 } from 'lucide-react';
+import {
+  evaluateInterviewAnswer,
+  type AnswerEvaluation,
+} from '../services/geminiService';
 
 const INTERVIEW_QUESTIONS = [
   {
@@ -57,8 +62,47 @@ const INTERVIEW_QUESTIONS = [
     question: "Do you have any questions for us about the role or company?",
   },
 ];
+function getPersonalizedQuestions(): GeneratedInterviewQuestion[] {
+  try {
+    const savedQuestions = sessionStorage.getItem('interviewiq_questions');
+
+    if (!savedQuestions) {
+      return INTERVIEW_QUESTIONS.map((item) => ({
+        id: item.id,
+        question: item.question,
+        focus: 'General interview readiness',
+      }));
+    }
+
+    const parsedQuestions = JSON.parse(savedQuestions);
+
+    if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
+      return INTERVIEW_QUESTIONS.map((item) => ({
+        id: item.id,
+        question: item.question,
+        focus: 'General interview readiness',
+      }));
+    }
+
+    return parsedQuestions;
+  } catch {
+    return INTERVIEW_QUESTIONS.map((item) => ({
+      id: item.id,
+      question: item.question,
+      focus: 'General interview readiness',
+    }));
+  }
+}
+
+type InterviewResponse = {
+  questionId: number;
+  question: string;
+  answer: string;
+  evaluation: AnswerEvaluation;
+};
 
 export default function InterviewPage() {
+  const [questions] = useState<GeneratedInterviewQuestion[]>(getPersonalizedQuestions);
   const navigate = useNavigate();
   const [currentQuestion, setCurrentQuestion] = useState(0); // Start at question 3 (index 2)
   const [answer, setAnswer] = useState('');
@@ -76,6 +120,16 @@ export default function InterviewPage() {
     problemSolving: null,
   });
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [aiFeedback, setAiFeedback] = useState<AnswerEvaluation | null>(null);
+const [evaluationError, setEvaluationError] = useState('');
+const [responseHistory, setResponseHistory] = useState<InterviewResponse[]>(() => {
+  try {
+    const savedResponses = sessionStorage.getItem('interviewiq_responses');
+    return savedResponses ? JSON.parse(savedResponses) : [];
+  } catch {
+    return [];
+  }
+});
 
   // Timer effect
   useEffect(() => {
@@ -91,17 +145,48 @@ export default function InterviewPage() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleSubmitAnswer = () => {
+  const handleSubmitAnswer = async () => {
   if (!answer.trim()) return;
 
   setIsEvaluating(true);
+  setEvaluationError('');
 
-  setTimeout(() => {
+  try {
+    const result = await evaluateInterviewAnswer(
+      questions[currentQuestion].question,
+      answer,
+      'Software Engineer'
+    );
+
+    setAiFeedback(result);
+
     setEvaluation({
-      communication: 78,
-      technical: 82,
-      confidence: 75,
-      problemSolving: 88,
+      communication: result.communication,
+      technical: result.technicalKnowledge,
+      confidence: result.confidence,
+      problemSolving: result.problemSolving,
+    });
+
+    const completedResponse: InterviewResponse = {
+      questionId: questions[currentQuestion].id,
+      question: questions[currentQuestion].question,
+      answer,
+      evaluation: result,
+    };
+
+    setResponseHistory((previousResponses) => {
+      const withoutCurrentQuestion = previousResponses.filter(
+        (item) => item.questionId !== completedResponse.questionId
+      );
+
+      const updatedResponses = [...withoutCurrentQuestion, completedResponse];
+
+      sessionStorage.setItem(
+        'interviewiq_responses',
+        JSON.stringify(updatedResponses)
+      );
+
+      return updatedResponses;
     });
 
     setSubmittedQuestions((previous) =>
@@ -110,28 +195,160 @@ export default function InterviewPage() {
         : [...previous, currentQuestion + 1]
     );
 
-    setIsEvaluating(false);
-
-    if (currentQuestion === INTERVIEW_QUESTIONS.length - 1) {
-      setTimeout(() => navigate('/results'), 900);
+    if (currentQuestion === questions.length - 1) {
+      setTimeout(() => navigate('/results'), 1400);
       return;
     }
 
     setTimeout(() => {
       setCurrentQuestion((previous) => previous + 1);
       setAnswer('');
+      setAiFeedback(null);
+
       setEvaluation({
         communication: null,
         technical: null,
         confidence: null,
         problemSolving: null,
       });
-    }, 1200);
-  }, 1200);
+    }, 1600);
+  } catch (error) {
+    setEvaluationError(
+  'Live AI evaluation is temporarily unavailable. Demo evaluation is being shown so you can continue.'
+);
+
+const normalizedAnswer = answer.trim().toLowerCase();
+
+const isWeakAnswer = [
+  'i dont know',
+  "i don't know",
+  'dont know',
+  'no idea',
+  'idk',
+  'not sure',
+].some((phrase) => normalizedAnswer.includes(phrase));
+
+const wordCount = normalizedAnswer.split(/\s+/).filter(Boolean).length;
+
+let baseScore = 75;
+
+if (isWeakAnswer) {
+  baseScore = 25;
+} else if (wordCount < 10) {
+  baseScore = 40;
+} else if (wordCount < 30) {
+  baseScore = 58;
+} else if (wordCount < 70) {
+  baseScore = 70;
+} else {
+  baseScore = 82;
+}
+
+const fallbackEvaluation: AnswerEvaluation = {
+  communication: Math.min(100, baseScore + 2),
+  technicalKnowledge: Math.max(0, baseScore - 3),
+  confidence: Math.max(0, baseScore - 1),
+  problemSolving: Math.min(100, baseScore + 4),
+  overallScore: baseScore,
+  feedback: isWeakAnswer
+    ? 'Your response does not provide enough information to assess your knowledge or experience.'
+    : wordCount < 30
+      ? 'Your response is relevant but needs more detail, structure, and a practical example.'
+      : 'Your response is clear and relevant, with a good explanation of your approach.',
+  improvementTip: isWeakAnswer
+    ? 'Use the STAR method: describe the situation, your task, the action you took, and the result.'
+    : 'Add one measurable result or specific example to make your answer more convincing.',
+};
+
+setAiFeedback(fallbackEvaluation);
+
+setEvaluation({
+  communication: fallbackEvaluation.communication,
+  technical: fallbackEvaluation.technicalKnowledge,
+  confidence: fallbackEvaluation.confidence,
+  problemSolving: fallbackEvaluation.problemSolving,
+});
+
+const completedResponse: InterviewResponse = {
+  questionId: questions[currentQuestion].id,
+  question: questions[currentQuestion].question,
+  answer,
+  evaluation: fallbackEvaluation,
+};
+
+setResponseHistory((previousResponses) => {
+  const withoutCurrentQuestion = previousResponses.filter(
+    (item) => item.questionId !== completedResponse.questionId
+  );
+
+  const updatedResponses = [...withoutCurrentQuestion, completedResponse];
+
+  sessionStorage.setItem(
+    'interviewiq_responses',
+    JSON.stringify(updatedResponses)
+  );
+
+  return updatedResponses;
+});
+
+setSubmittedQuestions((previous) =>
+  previous.includes(currentQuestion + 1)
+    ? previous
+    : [...previous, currentQuestion + 1]
+);
+  } finally {
+    if (currentQuestion === questions.length - 1) {
+  setTimeout(() => navigate('/results'), 1400);
+} else {
+  setTimeout(() => {
+    setCurrentQuestion((previous) => previous + 1);
+    setAnswer('');
+    setAiFeedback(null);
+    setEvaluation({
+      communication: null,
+      technical: null,
+      confidence: null,
+      problemSolving: null,
+    });
+  }, 1600);
+}
+    setIsEvaluating(false);
+  }
+};const handleQuestionSelect = (questionIndex: number) => {
+  const selectedQuestion = questions[questionIndex];
+
+  const savedResponse = responseHistory.find(
+    (item) => item.questionId === selectedQuestion.id
+  );
+
+  setCurrentQuestion(questionIndex);
+  setEvaluationError('');
+
+  if (savedResponse) {
+    setAnswer(savedResponse.answer);
+    setAiFeedback(savedResponse.evaluation);
+
+    setEvaluation({
+      communication: savedResponse.evaluation.communication,
+      technical: savedResponse.evaluation.technicalKnowledge,
+      confidence: savedResponse.evaluation.confidence,
+      problemSolving: savedResponse.evaluation.problemSolving,
+    });
+  } else {
+    setAnswer('');
+    setAiFeedback(null);
+
+    setEvaluation({
+      communication: null,
+      technical: null,
+      confidence: null,
+      problemSolving: null,
+    });
+  }
 };
 
   const handleSkip = () => {
-  if (currentQuestion === INTERVIEW_QUESTIONS.length - 1) {
+  if (currentQuestion === questions.length - 1) {
     navigate('/results');
     return;
   }
@@ -179,7 +396,7 @@ export default function InterviewPage() {
               <div>
                 <p className="text-xs text-dark-400 uppercase tracking-wider">Progress</p>
                 <p className="font-medium">
-                  Question {currentQuestion + 1} of {INTERVIEW_QUESTIONS.length}
+                  Question {currentQuestion + 1} of {questions.length}
                 </p>
               </div>
             </div>
@@ -246,7 +463,7 @@ export default function InterviewPage() {
                 </div>
                 <div className="bg-dark-800/50 rounded-xl p-4">
                   <p className="text-dark-300 text-lg leading-relaxed">
-                    {INTERVIEW_QUESTIONS[currentQuestion].question}
+                    {questions[currentQuestion].question}
                   </p>
                 </div>
               </div>
@@ -362,10 +579,11 @@ export default function InterviewPage() {
           <div className="mt-6 bg-dark-800/50 rounded-xl p-4 border border-dark-700">
             <p className="text-xs text-dark-400 uppercase tracking-wider mb-2">AI Tip</p>
             <p className="text-sm text-dark-300">
-              {evaluation.communication === null
-                ? "Take your time to structure your answer. Begin with a clear opening, provide specific examples, and conclude with key takeaways."
-                : "Great answer! Consider adding more specific metrics to strengthen your examples."}
-            </p>
+  {evaluationError
+    ? evaluationError
+    : aiFeedback?.improvementTip ||
+      'Take your time to structure your answer. Begin with a clear opening, provide specific examples, and conclude with key takeaways.'}
+</p>
           </div>
         </div>
       </main>
@@ -375,19 +593,10 @@ export default function InterviewPage() {
         <div className="flex items-center gap-2">
           <span className="text-sm text-dark-400 mr-4">Questions:</span>
           <div className="flex items-center gap-2 flex-wrap">
-            {INTERVIEW_QUESTIONS.map((q, i) => (
+            {questions.map((q, i) => (
               <button
                 key={q.id}
-                onClick={() => {
-                  setCurrentQuestion(i);
-                  setAnswer('');
-                  setEvaluation({
-                    communication: null,
-                    technical: null,
-                    confidence: null,
-                    problemSolving: null,
-                  });
-                }}
+                onClick={() => handleQuestionSelect(i)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all ${
                   i === currentQuestion
                     ? 'bg-accent-500 text-white'
