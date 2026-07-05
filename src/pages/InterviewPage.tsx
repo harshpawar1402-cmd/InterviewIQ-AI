@@ -178,6 +178,54 @@ const [responseHistory, setResponseHistory] = useState<InterviewResponse[]>(() =
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const finalizeInterviewHistory = (responses: InterviewResponse[]) => {
+  try {
+    const activeInterviewId = sessionStorage.getItem(
+      'interviewiq_active_interview_id'
+    );
+
+    if (!activeInterviewId || responses.length === 0) return;
+
+    const rawHistory = localStorage.getItem(
+      'interviewiq_interview_history'
+    );
+
+    const history: any[] = rawHistory ? JSON.parse(rawHistory) : [];
+
+    const interviewIndex = history.findIndex(
+      (item: any) => item.id === activeInterviewId
+    );
+
+    if (interviewIndex === -1) return;
+
+    const average = (key: string) =>
+      Math.round(
+        responses.reduce(
+          (total, response) =>
+            total + Number((response.evaluation as any)?.[key] || 0),
+          0
+        ) / responses.length
+      );
+
+    history[interviewIndex] = {
+      ...history[interviewIndex],
+      completedAt: new Date().toISOString(),
+      responses,
+      overallScore: average('overallScore'),
+      communicationScore: average('communication'),
+      technicalScore: average('technicalKnowledge'),
+      confidenceScore: average('confidence'),
+      problemSolvingScore: average('problemSolving'),
+    };
+
+    localStorage.setItem(
+      'interviewiq_interview_history',
+      JSON.stringify(history)
+    );
+  } catch (error) {
+    console.error('Could not finalize interview history:', error);
+  }
+};
   const handleSubmitAnswer = async () => {
   if (!answer.trim()) return;
 
@@ -209,6 +257,11 @@ const [responseHistory, setResponseHistory] = useState<InterviewResponse[]>(() =
 
     const updatedResponses = saveInterviewResponse(completedResponse);
 setResponseHistory(updatedResponses);
+
+
+if (currentQuestion === questions.length - 1) {
+  finalizeInterviewHistory(updatedResponses);
+}
 
     setSubmittedQuestions((previous) =>
       previous.includes(currentQuestion + 1)
@@ -349,6 +402,9 @@ const completedResponse: InterviewResponse = {
 
 const updatedResponses = saveInterviewResponse(completedResponse);
 setResponseHistory(updatedResponses);
+if (currentQuestion === questions.length - 1) {
+  finalizeInterviewHistory(updatedResponses);
+}
 
 setSubmittedQuestions((previous) =>
   previous.includes(currentQuestion + 1)
@@ -408,12 +464,31 @@ setSubmittedQuestions((previous) =>
 
   const handleSkip = () => {
   if (currentQuestion === questions.length - 1) {
-    navigate('/results');
+    const savedResponses = (() => {
+      try {
+        const rawResponses = sessionStorage.getItem(
+          'interviewiq_responses'
+        );
+
+        return rawResponses ? JSON.parse(rawResponses) : [];
+      } catch {
+        return [];
+      }
+    })();
+
+    finalizeInterviewHistory(savedResponses);
+
+    setTimeout(() => {
+      navigate('/results');
+    }, 400);
+
     return;
   }
 
   setCurrentQuestion((previous) => previous + 1);
   setAnswer('');
+  setAiFeedback(null);
+
   setEvaluation({
     communication: null,
     technical: null,
