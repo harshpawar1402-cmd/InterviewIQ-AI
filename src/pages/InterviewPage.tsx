@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Brain,
   X,
@@ -59,10 +59,11 @@ const INTERVIEW_QUESTIONS = [
 ];
 
 export default function InterviewPage() {
-  const [currentQuestion, setCurrentQuestion] = useState(2); // Start at question 3 (index 2)
+  const navigate = useNavigate();
+  const [currentQuestion, setCurrentQuestion] = useState(0); // Start at question 3 (index 2)
   const [answer, setAnswer] = useState('');
   const [timeLeft, setTimeLeft] = useState(45 * 60); // 45 minutes in seconds
-  const [submittedQuestions, setSubmittedQuestions] = useState<number[]>([1, 2]);
+  const [submittedQuestions, setSubmittedQuestions] = useState<number[]>([]);
   const [evaluation, setEvaluation] = useState<{
     communication: number | null;
     technical: number | null;
@@ -91,30 +92,59 @@ export default function InterviewPage() {
   };
 
   const handleSubmitAnswer = () => {
-    if (!answer.trim()) return;
+  if (!answer.trim()) return;
 
-    setIsEvaluating(true);
+  setIsEvaluating(true);
 
-    // Simulate AI evaluation with animated values
+  setTimeout(() => {
+    setEvaluation({
+      communication: 78,
+      technical: 82,
+      confidence: 75,
+      problemSolving: 88,
+    });
+
+    setSubmittedQuestions((previous) =>
+      previous.includes(currentQuestion + 1)
+        ? previous
+        : [...previous, currentQuestion + 1]
+    );
+
+    setIsEvaluating(false);
+
+    if (currentQuestion === INTERVIEW_QUESTIONS.length - 1) {
+      setTimeout(() => navigate('/results'), 900);
+      return;
+    }
+
     setTimeout(() => {
+      setCurrentQuestion((previous) => previous + 1);
+      setAnswer('');
       setEvaluation({
-        communication: 78,
-        technical: 82,
-        confidence: 75,
-        problemSolving: 88,
+        communication: null,
+        technical: null,
+        confidence: null,
+        problemSolving: null,
       });
-      setIsEvaluating(false);
-      setSubmittedQuestions((prev) => [...prev, currentQuestion + 1]);
-    }, 2000);
-  };
+    }, 1200);
+  }, 1200);
+};
 
   const handleSkip = () => {
-    if (currentQuestion < INTERVIEW_QUESTIONS.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-      setAnswer('');
-      setEvaluation({ communication: null, technical: null, confidence: null, problemSolving: null });
-    }
-  };
+  if (currentQuestion === INTERVIEW_QUESTIONS.length - 1) {
+    navigate('/results');
+    return;
+  }
+
+  setCurrentQuestion((previous) => previous + 1);
+  setAnswer('');
+  setEvaluation({
+    communication: null,
+    technical: null,
+    confidence: null,
+    problemSolving: null,
+  });
+};
 
   const timerProgress = (timeLeft / (45 * 60)) * 100;
   const circumference = 2 * Math.PI * 45;
