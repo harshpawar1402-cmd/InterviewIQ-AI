@@ -20,12 +20,19 @@ import {
   ChevronRight,
   Zap,
 } from 'lucide-react';
+import {
+  analyzeResumeText,
+  type ResumeAnalysis,
+} from '../services/geminiService';
 
 export default function ResumeAnalysisPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
+  const [resumeText, setResumeText] = useState('');
+const [aiAnalysis, setAiAnalysis] = useState<ResumeAnalysis | null>(null);
+const [analysisError, setAnalysisError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Mock analysis data
@@ -53,6 +60,19 @@ export default function ResumeAnalysisPage() {
     ],
     expectedDifficulty: 'Medium',
   };
+  const displayedAnalysis = aiAnalysis ?? mockAnalysis;
+
+const suggestedSkills = displayedAnalysis.missingSkills.map((name, index) => ({
+  name,
+  priority: index < 2 ? 'High' : 'Medium',
+}));
+
+const expectedDifficulty =
+  displayedAnalysis.readiness >= 80
+    ? 'Hard'
+    : displayedAnalysis.readiness >= 60
+      ? 'Medium'
+      : 'Easy';
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -80,16 +100,42 @@ export default function ResumeAnalysisPage() {
     }
   };
 
-  const handleFileUpload = (file: File) => {
-    setUploadedFile(file);
-    setIsAnalyzing(true);
+  const handleRealAnalysis = async () => {
+  if (resumeText.trim().length < 80) {
+    setAnalysisError(
+      'Please paste at least a short resume or project description before analyzing.'
+    );
+    return;
+  }
 
-    // Simulate AI analysis
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      setAnalysisComplete(true);
-    }, 2500);
-  };
+  setAnalysisError('');
+  setIsAnalyzing(true);
+  setAnalysisComplete(false);
+
+  try {
+    const result = await analyzeResumeText(resumeText);
+
+    setAiAnalysis(result);
+    setAnalysisComplete(true);
+  } catch (error) {
+    setAnalysisError(
+      error instanceof Error
+        ? error.message
+        : 'Could not analyze the resume. Please try again.'
+    );
+  } finally {
+    setIsAnalyzing(false);
+  }
+};
+  const handleFileUpload = (file: File) => {
+  setUploadedFile(file);
+  setAnalysisComplete(false);
+  setAiAnalysis(null);
+
+  setAnalysisError(
+    'For the live AI demo, paste the resume text below and select Analyze with AI.'
+  );
+};
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
@@ -236,7 +282,41 @@ export default function ResumeAnalysisPage() {
               </div>
             )}
           </div>
+<div className="mt-6 rounded-2xl border border-dark-700 bg-dark-900/60 p-5">
+  <div className="mb-4 flex items-center gap-3">
+    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-500/15 text-accent-400">
+      <Sparkles className="h-5 w-5" />
+    </div>
 
+    <div>
+      <h3 className="font-semibold text-white">Live AI Resume Analysis</h3>
+      <p className="text-sm text-dark-400">
+        Paste resume text to receive real Gemini-powered feedback.
+      </p>
+    </div>
+  </div>
+
+  <textarea
+    value={resumeText}
+    onChange={(event) => setResumeText(event.target.value)}
+    placeholder="Paste your resume text here, including skills, education, projects, internships, and achievements..."
+    className="min-h-44 w-full resize-y rounded-xl border border-dark-700 bg-dark-950 p-4 text-sm text-white outline-none transition-colors placeholder:text-dark-500 focus:border-accent-500"
+  />
+
+  {analysisError && (
+    <p className="mt-3 text-sm text-amber-400">{analysisError}</p>
+  )}
+
+  <button
+    type="button"
+    onClick={handleRealAnalysis}
+    disabled={isAnalyzing}
+    className="mt-4 inline-flex items-center gap-2 rounded-xl bg-accent-500 px-5 py-3 font-medium text-white transition-colors hover:bg-accent-600 disabled:cursor-not-allowed disabled:opacity-60"
+  >
+    <Sparkles className="h-4 w-4" />
+    {isAnalyzing ? 'Gemini is analyzing...' : 'Analyze with AI'}
+  </button>
+</div>
           {/* Right Side - Analysis Results */}
           <div className="lg:w-1/2">
             {analysisComplete ? (
@@ -268,12 +348,12 @@ export default function ResumeAnalysisPage() {
                           fill="none"
                           className="text-accent-500"
                           strokeDasharray={`${2 * Math.PI * 40}`}
-                          strokeDashoffset={`${2 * Math.PI * 40 * (1 - mockAnalysis.score / 100)}`}
+                          strokeDashoffset={`${2 * Math.PI * 40 * (1 - displayedAnalysis.score / 100)}`}
                           strokeLinecap="round"
                         />
                       </svg>
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-2xl font-bold">{mockAnalysis.score}</span>
+                        <span className="text-2xl font-bold">{displayedAnalysis.score}</span>
                       </div>
                     </div>
                     <div>
@@ -292,15 +372,15 @@ export default function ResumeAnalysisPage() {
                       <Code className="w-4 h-4 text-accent-500" />
                       <span className="text-sm text-dark-400">Skills Detected</span>
                     </div>
-                    <p className="text-2xl font-bold">{mockAnalysis.skills.length}</p>
+                    <p className="text-2xl font-bold">{displayedAnalysis.skills.length}</p>
                     <div className="flex flex-wrap gap-1 mt-2">
-                      {mockAnalysis.skills.slice(0, 4).map((skill) => (
+                      {displayedAnalysis.skills.slice(0, 4).map((skill) => (
                         <span key={skill} className="text-xs bg-dark-800 px-2 py-1 rounded">
                           {skill}
                         </span>
                       ))}
                       <span className="text-xs bg-dark-800 px-2 py-1 rounded">
-                        +{mockAnalysis.skills.length - 4} more
+                        +{displayedAnalysis.skills.length - 4} more
                       </span>
                     </div>
                   </div>
@@ -311,7 +391,7 @@ export default function ResumeAnalysisPage() {
                       <Briefcase className="w-4 h-4 text-accent-500" />
                       <span className="text-sm text-dark-400">Projects Found</span>
                     </div>
-                    <p className="text-2xl font-bold">{mockAnalysis.projects}</p>
+                    <p className="text-2xl font-bold">{displayedAnalysis.projects}</p>
                   </div>
 
                   {/* Experience Level */}
@@ -320,7 +400,7 @@ export default function ResumeAnalysisPage() {
                       <Clock className="w-4 h-4 text-accent-500" />
                       <span className="text-sm text-dark-400">Experience Level</span>
                     </div>
-                    <p className="text-sm font-semibold">{mockAnalysis.experience}</p>
+                    <p className="text-sm font-semibold">{displayedAnalysis.experience}</p>
                   </div>
 
                   {/* Education */}
@@ -329,7 +409,7 @@ export default function ResumeAnalysisPage() {
                       <GraduationCap className="w-4 h-4 text-accent-500" />
                       <span className="text-sm text-dark-400">Education</span>
                     </div>
-                    <p className="text-sm font-semibold">{mockAnalysis.education}</p>
+                    <p className="text-sm font-semibold">{displayedAnalysis.education}</p>
                   </div>
                 </div>
 
@@ -340,7 +420,7 @@ export default function ResumeAnalysisPage() {
                     <span className="text-sm text-dark-400">Missing Skills</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {mockAnalysis.missingSkills.map((skill) => (
+                    {displayedAnalysis.missingSkills.map((skill) => (
                       <span key={skill} className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded">
                         {skill}
                       </span>
@@ -355,13 +435,13 @@ export default function ResumeAnalysisPage() {
                       <Zap className="w-5 h-5 text-accent-500" />
                       <div>
                         <p className="text-sm text-dark-400">AI Interview Readiness</p>
-                        <p className="text-xl font-bold">{mockAnalysis.readiness}%</p>
+                        <p className="text-xl font-bold">{displayedAnalysis.readiness}%</p>
                       </div>
                     </div>
                     <div className="w-16 h-2 bg-dark-800 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-accent-500 to-emerald-400 rounded-full"
-                        style={{ width: `${mockAnalysis.readiness}%` }}
+                        style={{ width: `${displayedAnalysis.readiness}%` }}
                       />
                     </div>
                   </div>
@@ -412,7 +492,7 @@ export default function ResumeAnalysisPage() {
                 </div>
                 <h4 className="font-medium mb-2">Recommended Roles</h4>
                 <div className="space-y-1">
-                  {mockAnalysis.recommendedRoles.map((role) => (
+                  {displayedAnalysis.recommendedRoles.map((role) => (
                     <p key={role} className="text-xs text-dark-300">{role}</p>
                   ))}
                 </div>
@@ -425,7 +505,7 @@ export default function ResumeAnalysisPage() {
                 </div>
                 <h4 className="font-medium mb-2">Suggested Skills</h4>
                 <div className="space-y-2">
-                  {mockAnalysis.suggestedSkills.map((skill) => (
+                  {suggestedSkills.map((skill) => (
                     <div key={skill.name} className="flex items-center justify-between">
                       <span className="text-xs text-dark-300">{skill.name}</span>
                       <span className={`text-xs px-2 py-0.5 rounded ${
@@ -447,7 +527,7 @@ export default function ResumeAnalysisPage() {
                 </div>
                 <h4 className="font-medium mb-2">Interview Difficulty</h4>
                 <span className="inline-block px-3 py-1 bg-amber-500/20 text-amber-400 rounded-full text-sm font-medium">
-                  {mockAnalysis.expectedDifficulty}
+                  {expectedDifficulty}
                 </span>
                 <p className="text-xs text-dark-400 mt-2">
                   Based on your experience level
