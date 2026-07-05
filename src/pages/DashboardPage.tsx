@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Plus,
   Upload,
@@ -23,6 +23,7 @@ import { useState, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const [animatedStats, setAnimatedStats] = useState({
     resumeScore: 0,
     avgScore: 0,
@@ -87,7 +88,7 @@ export default function DashboardPage() {
               <Plus className="w-5 h-5" />
               Start New Interview
             </Link>
-            <button className="flex items-center gap-3 glass-card hover:border-white/20 px-6 py-4 rounded-xl font-medium text-lg transition-all hover:scale-105">
+            <button onClick={() => navigate('/resume-analysis')} className="flex items-center gap-3 glass-card hover:border-white/20 px-6 py-4 rounded-xl font-medium text-lg transition-all hover:scale-105">
               <Upload className="w-5 h-5 text-accent-500" />
               Upload Resume
             </button>
@@ -341,21 +342,25 @@ export default function DashboardPage() {
                 icon={FileSearch}
                 title="Resume Analysis"
                 description="Get AI feedback on your resume"
+                onClick={() => navigate('/resume-analysis')}
               />
               <QuickActionCard
                 icon={Mic}
                 title="Start Interview"
                 description="Practice with AI interviewer"
+                onClick={() => navigate('/interview/setup')}
               />
               <QuickActionCard
                 icon={History}
                 title="Interview History"
                 description="Review past sessions"
+                onClick={() => navigate('/analytics')}
               />
               <QuickActionCard
                 icon={Download}
                 title="Download Reports"
                 description="Export your progress"
+                onClick={() => navigate('/results')}
               />
             </div>
           </div>
@@ -427,13 +432,15 @@ function QuickActionCard({
   icon: Icon,
   title,
   description,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   description: string;
+  onClick: () => void;
 }) {
   return (
-    <button className="glass-card rounded-xl p-6 hover-lift text-left group transition-all">
+    <button onClick={onClick} className="glass-card rounded-xl p-6 hover-lift text-left group transition-all">
       <div className="w-12 h-12 bg-accent-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-accent-500/20 group-hover:scale-110 transition-all">
         <Icon className="w-6 h-6 text-accent-500" />
       </div>

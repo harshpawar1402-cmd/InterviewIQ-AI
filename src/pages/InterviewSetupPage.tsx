@@ -82,6 +82,14 @@ export default function InterviewSetupPage() {
   };
 
   const handleStartInterview = () => {
+    const setupConfig = {
+      role: selectedRole,
+      difficulty,
+      interviewType,
+      questionCount,
+      timeLimit: selectedTimeData?.minutes || null,
+    };
+    sessionStorage.setItem('interviewiq_setup_config', JSON.stringify(setupConfig));
     navigate('/resume-analysis');
   };
 

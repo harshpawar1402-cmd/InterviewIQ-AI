@@ -26,6 +26,339 @@ import {
   type ResumeAnalysis,
 } from '../services/geminiService';
 
+// Role-specific question banks
+interface RoleQuestions {
+  [key: string]: {
+    [key: string]: string[];
+  };
+}
+
+const ROLE_QUESTION_BANKS: RoleQuestions = {
+  frontend: {
+    technical: [
+      'Explain the difference between React functional and class components.',
+      'How do you handle state management in a large React application?',
+      'What is the Virtual DOM and how does it improve performance?',
+      'Describe CSS Grid vs Flexbox and when you would use each.',
+      'How do you optimize the performance of a React application?',
+      'Explain lazy loading and code splitting in React.',
+      'What are React Hooks and why are they useful?',
+      'How do you handle form validation in React?',
+      'Explain the concept of controlled vs uncontrolled components.',
+      'What is the purpose of useEffect and how do you use it?',
+      'How would you implement responsive design for mobile devices?',
+      'Describe your experience with CSS preprocessors like SASS or LESS.',
+      'How do you debug a React application?',
+      'What are the benefits of using TypeScript in a React project?',
+      'Explain the shadow DOM and its use cases.',
+    ],
+    behavioral: [
+      'Tell me about a time you had to learn a new framework or library quickly.',
+      'Describe a challenging UI bug you encountered and how you fixed it.',
+      'How do you approach working with design teams on UI implementation?',
+      'Tell me about a time you improved the user experience of an application.',
+      'Describe your approach to writing maintainable and readable code.',
+      'How do you handle feedback on your code during code reviews?',
+      'Tell me about a time you had to optimize a slow-performing component.',
+    ],
+    'system-design': [
+      'How would you design a scalable single-page application architecture?',
+      'Describe your approach to organizing a large React codebase.',
+      'How would you implement a component library for a large organization?',
+      'Explain how you would structure state management for a complex application.',
+    ],
+  },
+  backend: {
+    technical: [
+      'Explain RESTful API design principles.',
+      'What is the difference between SQL and NoSQL databases?',
+      'How do you handle authentication and authorization in a backend service?',
+      'Describe microservices architecture and its benefits.',
+      'How do you implement caching strategies in a backend application?',
+      'Explain database indexing and its impact on query performance.',
+      'What are the SOLID principles and how do you apply them?',
+      'Describe API rate limiting and how you would implement it.',
+      'How do you handle transactions and data consistency in a distributed system?',
+      'Explain the difference between synchronous and asynchronous processing.',
+      'How would you design a messaging queue system?',
+      'Describe your experience with ORM frameworks.',
+      'How do you implement pagination efficiently?',
+      'What is the purpose of database normalization?',
+      'Explain load balancing and its types.',
+    ],
+    behavioral: [
+      'Tell me about a time you had to debug a production issue.',
+      'Describe a complex backend feature you designed and implemented.',
+      'How do you approach scaling a backend system that is growing in traffic?',
+      'Tell me about your experience working with databases.',
+      'Describe a time you had to refactor legacy code.',
+      'How do you document your APIs for other developers?',
+      'Tell me about a time you had to optimize database queries.',
+    ],
+    'system-design': [
+      'How would you design a URL shortening service?',
+      'Design a real-time notification system.',
+      'How would you design a highly scalable chat application?',
+      'Describe how you would architect a content delivery system.',
+    ],
+  },
+  fullstack: {
+    technical: [
+      'Describe your approach to building a full-stack web application.',
+      'How do you handle communication between frontend and backend?',
+      'Explain your experience with both frontend and backend technologies.',
+      'How do you ensure data consistency between frontend and backend?',
+      'Describe your experience with API design and implementation.',
+      'How do you manage state across frontend and backend?',
+      'Explain your approach to testing in a full-stack application.',
+      'How would you implement real-time features in a full-stack app?',
+      'Describe your experience with deployment and DevOps.',
+      'How do you handle security concerns in a full-stack application?',
+    ],
+    behavioral: [
+      'Tell me about your most complex full-stack project.',
+      'How do you prioritize work on frontend vs backend tasks?',
+      'Describe a time you had to collaborate between frontend and backend teams.',
+      'How do you stay updated with technologies across both frontend and backend?',
+      'Tell me about a time you had to make architectural decisions.',
+    ],
+    'system-design': [
+      'Design a scalable e-commerce platform.',
+      'How would you architect a multi-tenant SaaS application?',
+      'Design a real-time collaboration tool like Google Docs.',
+    ],
+  },
+  data: {
+    technical: [
+      'Explain the difference between structured and unstructured data.',
+      'How do you write efficient SQL queries?',
+      'Describe your experience with data visualization tools.',
+      'What is the difference between OLTP and OLAP?',
+      'Explain normalization and denormalization in databases.',
+      'How would you handle missing or corrupt data in a dataset?',
+      'Describe ETL processes and tools you have used.',
+      'How do you identify outliers in a dataset?',
+      'Explain aggregation functions and when to use them.',
+      'What is the purpose of window functions in SQL?',
+      'Describe your experience with Python for data analysis.',
+      'How would you approach exploratory data analysis?',
+      'Explain time-series data and how you would analyze it.',
+      'Describe your experience with data warehousing.',
+      'How do you handle performance optimization in complex queries?',
+    ],
+    behavioral: [
+      'Tell me about a time you discovered valuable insights from data.',
+      'How do you present complex data findings to non-technical stakeholders?',
+      'Describe a time you had to work with messy or incomplete data.',
+      'How do you approach validating data quality?',
+      'Tell me about a time you improved a business process through data analysis.',
+    ],
+  },
+  ml: {
+    technical: [
+      'Explain the difference between supervised and unsupervised learning.',
+      'Describe your experience with TensorFlow or PyTorch.',
+      'How do you prevent overfitting in machine learning models?',
+      'Explain cross-validation and why it is important.',
+      'What is the purpose of feature engineering?',
+      'Describe different activation functions and their use cases.',
+      'How do you handle imbalanced datasets?',
+      'Explain the difference between classification and regression.',
+      'What is the curse of dimensionality?',
+      'Describe your experience with deep learning architectures.',
+      'How would you approach a new machine learning problem?',
+      'Explain gradient descent and backpropagation.',
+      'What are hyperparameters and how do you tune them?',
+      'Describe your experience with model evaluation metrics.',
+      'How do you handle missing data in machine learning?',
+    ],
+    behavioral: [
+      'Tell me about a machine learning project you worked on.',
+      'Describe a time you had to explain model results to business stakeholders.',
+      'How do you approach deploying a machine learning model to production?',
+      'Tell me about challenges you faced when building ML models.',
+      'Describe how you stay updated with new ML techniques.',
+    ],
+  },
+  devops: {
+    technical: [
+      'Explain Docker and how containerization works.',
+      'Describe your experience with Kubernetes orchestration.',
+      'How would you set up a CI/CD pipeline?',
+      'Explain Infrastructure as Code and its benefits.',
+      'Describe your experience with monitoring and logging.',
+      'How do you implement automated testing in a CI/CD pipeline?',
+      'Explain blue-green deployment and canary releases.',
+      'How would you set up auto-scaling for an application?',
+      'Describe your experience with cloud platforms.',
+      'How do you handle secrets and environment variables?',
+      'Explain load balancing and its types.',
+      'Describe your experience with configuration management tools.',
+      'How would you implement disaster recovery?',
+      'Explain the importance of idempotency in infrastructure.',
+      'How do you optimize infrastructure costs?',
+    ],
+    behavioral: [
+      'Tell me about a time you improved deployment efficiency.',
+      'Describe a critical production incident and how you handled it.',
+      'How do you approach automating manual processes?',
+      'Tell me about your experience on-call for production systems.',
+      'How do you collaborate with development teams on deployment?',
+    ],
+  },
+  design: {
+    technical: [
+      'Describe your experience with Figma and design tools.',
+      'How do you approach responsive design for different screen sizes?',
+      'Explain your process for creating wireframes and prototypes.',
+      'How do you ensure accessibility in your designs?',
+      'Describe your experience with design systems.',
+      'How do you handle design feedback and iterations?',
+      'Explain your approach to information architecture.',
+      'How do you balance aesthetics with functionality?',
+      'Describe your experience with user testing.',
+      'How would you improve the user experience of an existing application?',
+      'Explain the importance of typography in UI design.',
+      'How do you approach color theory in design?',
+      'Describe your experience with mobile app design.',
+      'How do you ensure consistency across a product?',
+      'Explain micro-interactions and their role in UX.',
+    ],
+    behavioral: [
+      'Tell me about a design project you are proud of.',
+      'How do you approach user research and feedback?',
+      'Describe a time you had to advocate for a design decision.',
+      'Tell me about your experience collaborating with engineers.',
+      'How do you stay current with design trends and best practices?',
+    ],
+  },
+  security: {
+    technical: [
+      'Explain the OWASP Top 10 vulnerabilities.',
+      'Describe SQL injection and how to prevent it.',
+      'How would you conduct a security audit of an application?',
+      'Explain encryption vs hashing and their use cases.',
+      'Describe your experience with penetration testing.',
+      'How do you implement secure authentication systems?',
+      'Explain network security concepts like firewalls and VPNs.',
+      'How would you handle a security breach?',
+      'Describe your experience with security scanning tools.',
+      'How do you ensure secure API design?',
+      'Explain certificate-based authentication.',
+      'Describe your experience with vulnerability assessment.',
+      'How do you implement secure password storage?',
+      'Explain zero-trust security architecture.',
+      'How would you design a secure data transmission system?',
+    ],
+    behavioral: [
+      'Tell me about a security vulnerability you discovered and fixed.',
+      'How do you approach security in your development process?',
+      'Describe your experience working on security compliance projects.',
+      'How do you stay updated with security threats and best practices?',
+      'Tell me about a time you had to balance security with usability.',
+    ],
+  },
+  software: {
+    technical: [
+      'Explain the SOLID principles.',
+      'Describe design patterns you use regularly.',
+      'How do you approach writing testable code?',
+      'Explain the difference between unit and integration tests.',
+      'How do you handle version control and Git workflows?',
+      'Describe your experience with debugging techniques.',
+      'How do you approach refactoring legacy code?',
+      'Explain the importance of code review.',
+      'How do you handle technical debt?',
+      'Describe your experience with different programming paradigms.',
+      'How do you optimize code for performance?',
+      'Explain the concept of modularity in software design.',
+      'How would you approach learning a new programming language?',
+      'Describe your experience with build tools and package managers.',
+      'How do you ensure code quality and maintainability?',
+    ],
+    behavioral: [
+      'Tell me about a complex problem you solved.',
+      'Describe your approach to learning new technologies.',
+      'How do you handle tight deadlines?',
+      'Tell me about a time you had to explain technical concepts to non-technical people.',
+      'How do you collaborate with other developers?',
+      'Describe a time you had to debug a difficult issue.',
+      'How do you approach code reviews?',
+    ],
+  },
+  marketing: {
+    technical: [
+      'Explain your experience with marketing automation tools.',
+      'How do you approach SEO and keyword research?',
+      'Describe your experience with analytics platforms.',
+      'How do you measure campaign ROI?',
+      'Explain A/B testing and its implementation.',
+      'Describe your experience with social media marketing.',
+      'How would you create a content marketing strategy?',
+      'Explain marketing funnel optimization.',
+      'Describe your experience with CRM systems.',
+      'How do you approach email marketing campaigns?',
+      'Explain customer segmentation and personalization.',
+      'How do you use data to inform marketing decisions?',
+      'Describe your experience with paid advertising platforms.',
+      'How would you build a brand awareness campaign?',
+      'Explain customer journey mapping.',
+    ],
+    behavioral: [
+      'Tell me about a successful marketing campaign you led.',
+      'How do you approach market research?',
+      'Describe a time you had to pivot your marketing strategy.',
+      'How do you measure success in marketing initiatives?',
+      'Tell me about your experience with cross-functional collaboration.',
+      'How do you stay updated with marketing trends?',
+    ],
+  },
+};
+
+function generateRoleSpecificQuestions(
+  role: string,
+  interviewType: string,
+  questionCount: number
+): Array<{ id: number; question: string; focus: string }> {
+  const roleQuestions = ROLE_QUESTION_BANKS[role] || ROLE_QUESTION_BANKS['software'];
+  
+  // Get questions for the selected interview type, or mix types if not available
+  let selectedQuestions: string[] = [];
+  
+  if (interviewType === 'mixed') {
+    // Mix different types of questions
+    const allQuestions = Object.values(roleQuestions).flat();
+    selectedQuestions = allQuestions;
+  } else if (roleQuestions[interviewType]) {
+    selectedQuestions = roleQuestions[interviewType];
+  } else {
+    // Fall back to technical questions if type not found
+    selectedQuestions = roleQuestions['technical'] || Object.values(roleQuestions)[0] || [];
+  }
+  
+  // Generate questions by cycling through available questions to reach desired count
+  const generatedQuestions: Array<{ id: number; question: string; focus: string }> = [];
+  const usedIndices = new Set<number>();
+  
+  for (let i = 0; i < questionCount; i++) {
+    const questionIndex = i % selectedQuestions.length;
+    
+    // If we've cycled through all questions, just use them again
+    if (i >= selectedQuestions.length) {
+      usedIndices.clear();
+    }
+    
+    const question = selectedQuestions[questionIndex];
+    generatedQuestions.push({
+      id: i + 1,
+      question,
+      focus: `${interviewType === 'mixed' ? 'Mixed' : interviewType.charAt(0).toUpperCase() + interviewType.slice(1)} - ${role.replace(/([A-Z])/g, ' $1').trim()}`,
+    });
+  }
+  
+  return generatedQuestions;
+}
+
 export default function ResumeAnalysisPage() {
   const navigate = useNavigate();
   const [isDragging, setIsDragging] = useState(false);
@@ -102,7 +435,40 @@ const expectedDifficulty =
     }
   };
 
-  const handleRealAnalysis = async () => {
+  const saveResumeToStorage = (analysis: ResumeAnalysis) => {
+  const savedResumes = JSON.parse(localStorage.getItem('interviewiq_saved_resumes') || '[]');
+  
+  const title = uploadedFile ? uploadedFile.name : 'Pasted Resume';
+  const sourceType = uploadedFile ? 'uploaded' : 'pasted';
+  const timestamp = new Date().toISOString();
+  
+  // Check if resume with same title already exists
+  const existingIndex = savedResumes.findIndex((r: any) => r.title === title);
+  
+  const newRecord = {
+    id: existingIndex >= 0 ? savedResumes[existingIndex].id : Date.now(),
+    title,
+    createdAt: existingIndex >= 0 ? savedResumes[existingIndex].createdAt : timestamp,
+    updatedAt: timestamp,
+    score: analysis.score,
+    readiness: analysis.readiness,
+    skills: analysis.skills,
+    experience: analysis.experience,
+    education: analysis.education,
+    recommendedRoles: analysis.recommendedRoles,
+    sourceType,
+  };
+  
+  if (existingIndex >= 0) {
+    savedResumes[existingIndex] = newRecord;
+  } else {
+    savedResumes.push(newRecord);
+  }
+  
+  localStorage.setItem('interviewiq_saved_resumes', JSON.stringify(savedResumes));
+};
+
+const handleRealAnalysis = async () => {
   if (resumeText.trim().length < 80) {
     setAnalysisError(
       'Please paste at least a short resume or project description before analyzing.'
@@ -118,6 +484,7 @@ const expectedDifficulty =
     const result = await analyzeResumeText(resumeText);
 
     setAiAnalysis(result);
+    saveResumeToStorage(result);
     setAnalysisComplete(true);
   } catch (error) {
   console.error('Gemini analysis fallback:', error);
@@ -178,6 +545,7 @@ const expectedDifficulty =
   };
 
   setAiAnalysis(fallbackAnalysis);
+  saveResumeToStorage(fallbackAnalysis);
   setAnalysisComplete(true);
 
   setAnalysisError(
@@ -309,6 +677,73 @@ const handleGeneratePersonalizedInterview = async () => {
   setAnalysisError(
     'For the live AI demo, paste the resume text below and select Analyze with AI.'
   );
+};
+
+const handleSkipResumeAnalysis = () => {
+  try {
+    const setupConfig = JSON.parse(sessionStorage.getItem('interviewiq_setup_config') || '{}');
+    
+    // Generate unique interview ID
+    let interviewId: string;
+    try {
+      interviewId = crypto.randomUUID();
+    } catch {
+      interviewId = `interview-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    
+    // Generate role-specific questions first
+    const questions = setupConfig.role
+      ? generateRoleSpecificQuestions(
+          setupConfig.role,
+          setupConfig.interviewType || 'mixed',
+          setupConfig.questionCount || 10
+        )
+      : [];
+    
+    // Create and save new interview record to localStorage history
+    const newInterview = {
+      id: interviewId,
+      startedAt: new Date().toISOString(),
+      completedAt: null,
+      role: setupConfig.role || 'Software Engineer',
+      difficulty: setupConfig.difficulty || 'Medium',
+      interviewType: setupConfig.interviewType || 'Mixed',
+      questions: questions,
+      responses: [],
+      overallScore: null,
+      communicationScore: null,
+      technicalScore: null,
+      confidenceScore: null,
+      problemSolvingScore: null,
+    };
+    
+    // Save active interview ID to sessionStorage
+    sessionStorage.setItem('interviewiq_active_interview_id', interviewId);
+    
+    // Get existing history or start new
+    let history = [];
+    try {
+      const existingHistory = localStorage.getItem('interviewiq_interview_history');
+      history = existingHistory ? JSON.parse(existingHistory) : [];
+    } catch {
+      history = [];
+    }
+    
+    // Add new interview to history
+    history.push(newInterview);
+    localStorage.setItem('interviewiq_interview_history', JSON.stringify(history));
+    
+    // Save questions to sessionStorage for the current interview
+    sessionStorage.setItem('interviewiq_questions', JSON.stringify(questions));
+    
+    // Clear active interview responses for the new session
+    sessionStorage.removeItem('interviewiq_responses');
+    
+    navigate('/interview');
+  } catch (error) {
+    console.error('Error skipping resume analysis:', error);
+    navigate('/interview');
+  }
 };
 
   const formatFileSize = (bytes: number) => {
@@ -737,7 +1172,11 @@ const handleGeneratePersonalizedInterview = async () => {
           </button>
           <Link
             to="/interview"
-            className="flex items-center justify-center gap-2 glass-card hover:border-white/20 px-8 py-3 rounded-xl font-medium transition-all w-full sm:w-auto"
+            onClick={(e) => {
+              e.preventDefault();
+              handleSkipResumeAnalysis();
+            }}
+            className="flex items-center justify-center gap-2 glass-card hover:border-white/20 px-8 py-3 rounded-xl font-medium transition-all w-full sm:w-auto cursor-pointer"
           >
             Skip Resume Analysis
             <ChevronRight className="w-4 h-4" />

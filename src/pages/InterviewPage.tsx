@@ -100,6 +100,39 @@ type InterviewResponse = {
   answer: string;
   evaluation: AnswerEvaluation;
 };
+function saveInterviewResponse(response: InterviewResponse): InterviewResponse[] {
+  try {
+    const saved = sessionStorage.getItem('interviewiq_responses');
+
+    const previousResponses: InterviewResponse[] = saved
+      ? JSON.parse(saved)
+      : [];
+
+    const withoutCurrentQuestion = previousResponses.filter(
+      (item) => item.questionId !== response.questionId
+    );
+
+    const updatedResponses = [...withoutCurrentQuestion, response].sort(
+      (first, second) => first.questionId - second.questionId
+    );
+
+    sessionStorage.setItem(
+      'interviewiq_responses',
+      JSON.stringify(updatedResponses)
+    );
+
+    return updatedResponses;
+  } catch {
+    const updatedResponses = [response];
+
+    sessionStorage.setItem(
+      'interviewiq_responses',
+      JSON.stringify(updatedResponses)
+    );
+
+    return updatedResponses;
+  }
+}
 
 export default function InterviewPage() {
   const [questions] = useState<GeneratedInterviewQuestion[]>(getPersonalizedQuestions);
@@ -174,20 +207,8 @@ const [responseHistory, setResponseHistory] = useState<InterviewResponse[]>(() =
       evaluation: result,
     };
 
-    setResponseHistory((previousResponses) => {
-      const withoutCurrentQuestion = previousResponses.filter(
-        (item) => item.questionId !== completedResponse.questionId
-      );
-
-      const updatedResponses = [...withoutCurrentQuestion, completedResponse];
-
-      sessionStorage.setItem(
-        'interviewiq_responses',
-        JSON.stringify(updatedResponses)
-      );
-
-      return updatedResponses;
-    });
+    const updatedResponses = saveInterviewResponse(completedResponse);
+setResponseHistory(updatedResponses);
 
     setSubmittedQuestions((previous) =>
       previous.includes(currentQuestion + 1)
@@ -196,7 +217,57 @@ const [responseHistory, setResponseHistory] = useState<InterviewResponse[]>(() =
     );
 
     if (currentQuestion === questions.length - 1) {
-      setTimeout(() => navigate('/results'), 1400);
+      // Interview completed - save to localStorage history
+      setTimeout(() => {
+        try {
+          const activeInterviewId = sessionStorage.getItem('interviewiq_active_interview_id');
+          const allResponses = saveInterviewResponse(completedResponse);
+          
+          if (activeInterviewId) {
+            // Calculate aggregate scores
+            const scores = allResponses.map(r => r.evaluation.overallScore);
+            const communications = allResponses.map(r => r.evaluation.communication);
+            const technicals = allResponses.map(r => r.evaluation.technicalKnowledge);
+            const confidences = allResponses.map(r => r.evaluation.confidence);
+            const problemSolvings = allResponses.map(r => r.evaluation.problemSolving);
+            
+            const overallScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+            const communicationScore = Math.round(communications.reduce((a, b) => a + b, 0) / communications.length);
+            const technicalScore = Math.round(technicals.reduce((a, b) => a + b, 0) / technicals.length);
+            const confidenceScore = Math.round(confidences.reduce((a, b) => a + b, 0) / confidences.length);
+            const problemSolvingScore = Math.round(problemSolvings.reduce((a, b) => a + b, 0) / problemSolvings.length);
+            
+            // Get interview history and update completed interview
+            let history: any[] = [];
+            try {
+              const existingHistory = localStorage.getItem('interviewiq_interview_history');
+              history = existingHistory ? JSON.parse(existingHistory) : [];
+            } catch {
+              history = [];
+            }
+            
+            const interviewIndex = history.findIndex(
+  (i: any) => i.id === activeInterviewId
+);
+            if (interviewIndex !== -1) {
+              history[interviewIndex].completedAt = new Date().toISOString();
+              history[interviewIndex].responses = allResponses;
+              history[interviewIndex].questions = questions;
+              history[interviewIndex].overallScore = overallScore;
+              history[interviewIndex].communicationScore = communicationScore;
+              history[interviewIndex].technicalScore = technicalScore;
+              history[interviewIndex].confidenceScore = confidenceScore;
+              history[interviewIndex].problemSolvingScore = problemSolvingScore;
+              
+              localStorage.setItem('interviewiq_interview_history', JSON.stringify(history));
+            }
+          }
+        } catch (error) {
+          console.error('Error saving completed interview to history:', error);
+        }
+        
+        navigate('/results');
+      }, 1400);
       return;
     }
 
@@ -276,20 +347,8 @@ const completedResponse: InterviewResponse = {
   evaluation: fallbackEvaluation,
 };
 
-setResponseHistory((previousResponses) => {
-  const withoutCurrentQuestion = previousResponses.filter(
-    (item) => item.questionId !== completedResponse.questionId
-  );
-
-  const updatedResponses = [...withoutCurrentQuestion, completedResponse];
-
-  sessionStorage.setItem(
-    'interviewiq_responses',
-    JSON.stringify(updatedResponses)
-  );
-
-  return updatedResponses;
-});
+const updatedResponses = saveInterviewResponse(completedResponse);
+setResponseHistory(updatedResponses);
 
 setSubmittedQuestions((previous) =>
   previous.includes(currentQuestion + 1)
