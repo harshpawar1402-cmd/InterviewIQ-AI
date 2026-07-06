@@ -8,6 +8,7 @@ import {
   Settings,
   LogOut,
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface SidebarProps {
   currentPage?: string;
@@ -16,6 +17,17 @@ interface SidebarProps {
 export default function Sidebar({ currentPage }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
+
+const handleSignOut = async () => {
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    console.error('Could not sign out:', error.message);
+    return;
+  }
+
+  navigate('/login');
+};
 
   const isActive = (path: string) => {
     if (currentPage) return currentPage === path;
@@ -29,10 +41,6 @@ export default function Sidebar({ currentPage }: SidebarProps) {
     { path: '/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ];
-
-  const handleSignOut = () => {
-    navigate('/');
-  };
 
   return (
     <aside className="w-64 bg-dark-900 border-r border-dark-800 flex flex-col fixed h-full">

@@ -1,16 +1,89 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Brain, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
+import { supabase } from '../lib/supabase';
 
 export default function LoginPage() {
-  const navigate = useNavigate();
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLogin, setIsLogin] = useState(true);
+ const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    navigate('/dashboard');
-  };
+const [showPassword, setShowPassword] = useState(false);
+const [isLogin, setIsLogin] = useState(true);
+
+const [fullName, setFullName] = useState('');
+const [email, setEmail] = useState('');
+const [password, setPassword] = useState('');
+
+const [isSubmitting, setIsSubmitting] = useState(false);
+const [authError, setAuthError] = useState('');
+const [authMessage, setAuthMessage] = useState('');
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  setAuthError('');
+  setAuthMessage('');
+
+  if (!email.trim() || !password.trim()) {
+    setAuthError('Please enter your email and password.');
+    return;
+  }
+
+  if (!isLogin && !fullName.trim()) {
+    setAuthError('Please enter your full name.');
+    return;
+  }
+
+  setIsSubmitting(true);
+
+  try {
+    if (isLogin) {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      navigate('/dashboard');
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: {
+          full_name: fullName.trim(),
+        },
+      },
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    if (data.session) {
+      navigate('/dashboard');
+      return;
+    }
+
+    setAuthMessage(
+      'Account created successfully. Check your email to confirm your account, then sign in.'
+    );
+    setIsLogin(true);
+    setPassword('');
+  } catch (error) {
+    setAuthError(
+      error instanceof Error
+        ? error.message
+        : 'Authentication failed. Please try again.'
+    );
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-dark-900 flex">
@@ -51,6 +124,17 @@ export default function LoginPage() {
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+              {authError && (
+  <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+    {authError}
+  </div>
+)}
+
+{authMessage && (
+  <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+    {authMessage}
+  </div>
+)}
               {!isLogin && (
                 <div>
                   <label
@@ -62,6 +146,8 @@ export default function LoginPage() {
                   <input
                     type="text"
                     id="name"
+                    value={fullName}
+onChange={(e) => setFullName(e.target.value)}
                     className="w-full bg-dark-900 border border-dark-700 rounded-lg px-4 py-3 text-white placeholder-dark-500 focus:outline-none focus:border-accent-500 transition-colors"
                     placeholder="John Doe"
                   />
@@ -80,6 +166,8 @@ export default function LoginPage() {
                   <input
                     type="email"
                     id="email"
+                    value={email}
+onChange={(e) => setEmail(e.target.value)}
                     className="w-full bg-dark-900 border border-dark-700 rounded-lg pl-12 pr-4 py-3 text-white placeholder-dark-500 focus:outline-none focus:border-accent-500 transition-colors"
                     placeholder="you@example.com"
                   />
@@ -98,6 +186,8 @@ export default function LoginPage() {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     id="password"
+                    value={password}
+onChange={(e) => setPassword(e.target.value)}
                     className="w-full bg-dark-900 border border-dark-700 rounded-lg pl-12 pr-12 py-3 text-white placeholder-dark-500 focus:outline-none focus:border-accent-500 transition-colors"
                     placeholder="••••••••"
                   />
@@ -135,9 +225,14 @@ export default function LoginPage() {
 
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="w-full bg-accent-500 hover:bg-accent-600 text-white font-semibold py-3 rounded-lg transition-colors"
               >
-                {isLogin ? 'Sign In' : 'Create Account'}
+                {isSubmitting
+  ? 'Please wait...'
+  : isLogin
+    ? 'Sign In'
+    : 'Create Account'}
               </button>
             </form>
 
